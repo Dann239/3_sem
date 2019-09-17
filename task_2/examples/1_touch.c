@@ -4,7 +4,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-/* this program implements the logic of 'touch' utilite: it creates files on fs */
+/* this program implements the logic of a 'touch' utility: it creates files on fs */
 
 int main(int argc, char **argv)
 {

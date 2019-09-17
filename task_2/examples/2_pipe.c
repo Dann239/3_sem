@@ -24,7 +24,7 @@ int main()
     while((size = read(0, buf, sizeof(buf)-1)) > 0) {
       buf[size] = 0; // the text string data is expected
       write(fd[1], buf, size);
-      printf("Send: %s\n", buf);
+      printf("Sent: %s\n", buf);
     }
   }
   else {
