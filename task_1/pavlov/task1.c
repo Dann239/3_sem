@@ -42,7 +42,7 @@ int main() {
                 if(cmd[i] == ' ' && cmd[i+1] != ' ' && cmd[i+1] != 0)
                     argc++;
 
-            char** argv = malloc(argc * sizeof(char*)); //allocate memory for args
+            char** argv = malloc((argc + 1) * sizeof(char*)); //allocate memory for args
 
             char* name = strtok(cmd, " ");
             argv[0] = name;
@@ -50,6 +50,9 @@ int main() {
             for(int i = 1; i < argc; i++) 
                 argv[i] = strtok(NULL," ");
 
+            argv[argc] = 0; //args must be terminated with NULL
+
+            printf("%d\n", argc);
             execvp( //die, replace self with the called command
                 name, //pass the name of the command
                 argv //pass args
