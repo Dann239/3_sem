@@ -7,11 +7,13 @@
 #include <sys/stat.h> //mknod
 #include <string.h> //strlen strcmp memcpy
 #include <limits.h> //PATH_MAX
+#include <sys/inotify.h> //inotify
 
 #define FIFO_CMD "/tmp/custom_daemon_fifo_in" //fifo for passing commands to daemon
 #define FIFO_LOG "/tmp/custom_daemon_fifo_out" //fifo for getting response from daemon
 
-char path[PATH_MAX] = "~";
+char path[PATH_MAX] = ".";
+
 
 void custom_daemon() {
     int log = open(FIFO_LOG, O_WRONLY | O_APPEND);
@@ -40,7 +42,7 @@ void custom_daemon() {
         }
     }
     else { //act as child - do all the job
-        while(1) sleep(1);
+        
     }
 }
 
@@ -71,11 +73,12 @@ int main(int argc, char** argv) {
     if(argc == 1) {
         printf("\
 no arguments passed, exiting\n\
-to start the daemon in your home directory, pass \'start\' as first arg\n\
+to start the daemon in your current directory, pass \'start\' as the first arg\n\
 to start the daemon in any other directory, pass its path as an arg\n\
 to get daemon's PID, use -p\n\
 to kill daemon, use -k\n\
-to get daemon's home directory, use -d\n");
+to get daemon's home directory, use -d\n
+do not rename the daemon's home direcory\n");
         return 0;
     }
     mknod(FIFO_LOG, S_IFIFO | 0644, 0);
