@@ -77,7 +77,7 @@ to start the daemon in your current directory, pass \'start\' as the first arg\n
 to start the daemon in any other directory, pass its path as an arg\n\
 to get daemon's PID, use -p\n\
 to kill daemon, use -k\n\
-to get daemon's home directory, use -d\n
+to get daemon's home directory, use -d\n\
 do not rename the daemon's home direcory\n");
         return 0;
     }

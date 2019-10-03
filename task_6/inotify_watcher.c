@@ -10,17 +10,23 @@
 #include <sys/inotify.h> //inotify
 #include <errno.h>
 #include <dirent.h>
+#include <time.h>
 
 char path_global[PATH_MAX] = "/home/palych/Documents/info/test";
-
-char cmd[0x2000];
 
 int inotify_fds[0x1000];
 int inotify_wds[0x1000];
 char* inotify_paths[0x1000];
 int inotify_size = 0;
 
+int time0 = 0;
+
 int restoration_script;
+int log_file;
+
+int get_time() {
+    return time(NULL) - time0;
+}
 
 char* rand_str() {
     static char res[11];
@@ -32,9 +38,13 @@ char* rand_str() {
     return res;
 }
 
+void restoration_append(char* cmd) {
+    dprintf(restoration_script, "if [ $1 -gt %d ]\nthen\n%sfi\n", get_time(), cmd);
+}
+
 void push(char* path) {
     inotify_fds[inotify_size] = inotify_init1(IN_NONBLOCK);
-    inotify_wds[inotify_size] = inotify_add_watch(inotify_fds[inotify_size], path, IN_CREATE | IN_DELETE | IN_MODIFY | IN_MOVED_FROM | IN_MOVED_TO);
+    inotify_wds[inotify_size] = inotify_add_watch(inotify_fds[inotify_size], path, IN_CREATE | IN_DELETE | IN_MODIFY | IN_MOVED_FROM | IN_MOVED_TO | IN_MOVE_SELF);
     
     inotify_paths[inotify_size] = malloc(strlen(path) + 1);
     strcpy(inotify_paths[inotify_size], path);
@@ -93,30 +103,55 @@ void subdir_move(char* src, char** file, char* trg) {
 }
 
 void movement(char* src, char* trg) {
-    printf("%s moved to %s\n", src, trg);
+    dprintf(log_file, "%s moved to %s at %ds\n", src, trg, get_time());
     for(int i = 0; i < inotify_size; i++)
         subdir_move(src, &inotify_paths[i], trg);
-    dprintf(restoration_script, "mv -f %s %s\n", src, trg);
+    
+    char cmd[0x2000] = "";
+    sprintf(cmd, "mv -f \"$DAEMONIC_PATH%s\" \"$DAEMONIC_PATH%s\"\n", &src[strlen(path_global)], &trg[strlen(path_global)]);
+    system(cmd);
+    restoration_append(cmd);
 }
 void deletion(char* trg) {
-    printf("%s deleted\n", trg);
+    dprintf(log_file, "%s deleted at %ds\n", trg, get_time());
     for(int i = 0; i < inotify_size; i++)
         if(is_subdir(trg, inotify_paths[i]) || !strcmp(trg, inotify_paths[i])) {
             inotify_rm_watch(inotify_fds[i], inotify_wds[i]);
         }
-    dprintf(restoration_script, "rm -rf %s\n", trg);
+    
+    char cmd[0x2000] = "";
+    sprintf(cmd, "rm -rf \"$DAEMONIC_PATH%s\"\n", &trg[strlen(path_global)]);
+    system(cmd);
+    restoration_append(cmd);
 }
 void creation(char* trg) {
-    printf("%s created\n", trg);
+    dprintf(log_file, "%s created at %ds\n", trg, get_time());
     if(is_dir(trg))
         net(trg);
     char* rstr = rand_str();
-    sprintf(cmd, "mkdir %s/.daemonic/created/%s ; cp -rf \"%s\" %s/.daemonic/created/%s", path_global, rstr, trg, path_global, rstr);
+    setenv("RSTR", rstr, 1);
+    setenv("GTRG", trg, 1);
+    
+    system("cp -rf \"$GTRG\" \"/tmp/daemonic/created/$RSTR\"");
+    
+    char cmd[0x2000] = "";
+    sprintf(cmd, "cp -rf \"/tmp/daemonic/created/%s\" \"$DAEMONIC_PATH%s\"\n", rstr, &trg[strlen(path_global)]);
     system(cmd);
-    dprintf(restoration_script, "cp -rf \"%s/.daemonic/created/%s-%s\" \"%s\"\n", path_global, trg, rstr, trg);
+    restoration_append(cmd);
 }
 void modification(char* trg) {
-    printf("%s modified\n", trg);
+    dprintf(log_file, "%s modified at %ds\n", trg, get_time());
+    char* rstr = rand_str();
+    setenv("RSTR", rstr, 1);
+    setenv("GTRG", trg, 1);
+    setenv("RTRG", &trg[strlen(path_global)], 1);
+    
+    system("diff -a \"$DAEMONIC_PATH$RTRG\" \"$GTRG\" > /tmp/daemonic/diffs/$RSTR");
+
+    char cmd[0x2000] = "";
+    sprintf(cmd, "patch -s \"$DAEMONIC_PATH%s\" \"/tmp/daemonic/diffs/%s\"\n", &trg[strlen(path_global)], rstr);
+    system(cmd);
+    restoration_append(cmd);
 }
 
 void scan() {
@@ -156,7 +191,6 @@ void scan() {
                         modification(str);
                         break;
 
-                    
                     case IN_MOVED_FROM:
                         pair_located = 0;
                         for(int m = 0; m < storage_size; m++) {
@@ -173,7 +207,14 @@ void scan() {
                         }
                         break;
 
+                    case IN_MOVE_SELF:
+                        inotify_rm_watch(inotify_fds[i], inotify_wds[i]);
+                        break;
+
                     case IN_MOVED_TO:
+                        if(is_dir(str))
+                            net(str);
+
                         pair_located = 0;
                         for(int m = 0; m < storage_size; m++) {
                             if(cookies[m] == -e->cookie) {
@@ -210,23 +251,27 @@ void scan() {
 }
 
 int main() {
+    time0 = time(NULL);
+
     srand(getpid());
     
-    sprintf(cmd, "\
-cd %s ; \
-rm -rf .daemonic ; \
-mkdir /tmp/daemonic_init ;\
-cp -rf * -t /tmp/daemonic_init ;\
-mkdir .daemonic .daemonic/init .daemonic/diffs .daemonic/created ; \
-cp -rf /tmp/daemonic_init/* -t .daemonic/init", path_global);
-    system(cmd);
+    setenv("DAEMONIC_PATH", path_global, 1);
+    system("\
+rm -rf /tmp/daemonic ; \
+mkdir /tmp/daemonic /tmp/daemonic/diffs /tmp/daemonic/created ;\
+cp -rf $DAEMONIC_PATH /tmp/daemonic/init ;\
+cp -rf $DAEMONIC_PATH /tmp/daemonic/current");
 
-    sprintf(cmd, "%s/.daemonic/restoration.sh");
-    restoration_script = open(cmd, O_WRONLY | O_CREAT);
+    setenv("DAEMONIC_PATH", "/tmp/daemonic/current", 1);
+    restoration_script = open("/tmp/daemonic/restoration.sh", O_WRONLY | O_CREAT, 0777);
+    dprintf(restoration_script, "if [ \"$DAEMONIC_PATH\" == \"\" ] || [ \"$1\" == \"\" ]\nthen\nexit\nfi\n");
+    dprintf(restoration_script, "rm -rf $DAEMONIC_PATH/*\ncp -rf /tmp/daemonic/init/* -t $DAEMONIC_PATH\n");
+
+    log_file = open("/tmp/daemonic/logfile.log", O_WRONLY | O_CREAT, 0777);
 
     net(path_global);
     while(1) {
         scan();
-        sleep(1);
+        usleep(1000);
     }
 }
