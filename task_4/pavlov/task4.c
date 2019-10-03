@@ -92,7 +92,7 @@ int main() {
     long long nsteps[11] = {294053760, 61261200, 10810800, 7207200, 3603600, 1441440, 720720, 554400, 277200, 110880, 55440}; //anti-primes with a large amount of divisors
     char* names[11] = {"table3e8.csv", "table6e7.csv", "table1e7.csv", "table7e6.csv", "table4e6.csv", "table1e6.csv", "table7e5.csv", "table6e5.csv", "table3e5.csv", "table1e5.csv", "table6e4.csv"};
     for(int n = 0; n < 11; n++) {
-        fd_out = open(names[n], O_WRONLY | O_CREAT, 0777);
+        fd_out = open(names[n], O_WRONLY | O_CREAT, 0644);
         for(long long i = 1; i < 32000; i++)
             if(nsteps[n] % i == 0)
                 measure(i, nsteps[n]);
