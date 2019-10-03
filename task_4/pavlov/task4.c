@@ -80,7 +80,7 @@ void measure(long long thread_num, long long nsteps) { //perform a measurement f
     free(args);
     long long dt = get_time() - t;
     printf("threads: %lld; time: %lld ms; nsteps: %lld; analytic: %lf; monte: %lf\n", thread_num, dt, nsteps, analytic_integral(x0, dx), result);
-    dprintf(fd_out, "%lld\t%lld\t%lld\n", thread_num, dt, nsteps);
+    dprintf(fd_out, "%lld,%lld,%lld\n", thread_num, dt, nsteps);
 
 }
 
