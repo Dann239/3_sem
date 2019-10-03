@@ -50,10 +50,10 @@ double analytic_integral(double x, double dx) { //analytic integral for checking
     return antiderivative(x+dx) - antiderivative(x);
 }
 
-long long get_time() { //get current system time in milliseconds
+long long get_time() { //get current system time in microseconds
 	struct timeval currentTime;
 	gettimeofday(&currentTime, NULL);
-	return currentTime.tv_sec * 1000 + currentTime.tv_usec / 1000;
+	return currentTime.tv_sec * 1000000 + currentTime.tv_usec;
 }
 
 int fd_out = 0;
@@ -79,7 +79,7 @@ void measure(long long thread_num, long long nsteps) { //perform a measurement f
     free(threads);
     free(args);
     long long dt = get_time() - t;
-    printf("threads: %lld; time: %lld ms; nsteps: %lld; analytic: %lf; monte: %lf\n", thread_num, dt, nsteps, analytic_integral(x0, dx), result);
+    printf("threads: %lld; time: %lld us; nsteps: %lld; analytic: %lf; monte: %lf\n", thread_num, dt, nsteps, analytic_integral(x0, dx), result);
     dprintf(fd_out, "%lld,%lld,%lld\n", thread_num, dt, nsteps);
 
 }
