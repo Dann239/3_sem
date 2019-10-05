@@ -254,11 +254,19 @@ void scan() { //checks all watchers and invokes correspondent handlers
 }
 
 void custom_daemon() { //the daemon itself
+    setsid();
+    close(STDIN_FILENO);
+    
+    sigset_t set;
+    sigfillset(&set);
+    sigprocmask(SIG_BLOCK, &set, NULL);
+    
     int cpid = fork();
     if(cpid) { //act as parent - listen for commands from fifo
         int log = open(FIFO_LOG, O_WRONLY | O_APPEND);
         dup2(log, STDOUT_FILENO);
         printf("new daemon started\n");
+        fflush(stdout);
         int cmd = open(FIFO_CMD, O_RDONLY);
         while(1) {
             fflush(stdout);
@@ -270,7 +278,7 @@ void custom_daemon() { //the daemon itself
             switch(c) { //read the command and execute it
             case 'k': //kill on k
                 printf("daemon terminated\n");
-                kill(cpid, SIGINT);
+                kill(cpid, SIGKILL);
                 exit(0);
 
             case 'p': //give PID on p
@@ -305,6 +313,8 @@ cp -rf $DAEMONIC_PATH /tmp/daemonic/current");
             dprintf(restoration_script, "rm -rf $DAEMONIC_PATH/*\ncp -rf /tmp/daemonic/init/* -t $DAEMONIC_PATH\n");
 
             log_file = open("/tmp/daemonic/logfile.log", O_WRONLY | O_CREAT, 0777);
+            dup2(log_file, STDOUT_FILENO);
+            dup2(log_file, STDERR_FILENO);
 
             net(path_global);
             while(1) {
@@ -340,7 +350,7 @@ void dump_log(int log) { //print accumulated logs
 
 int main(int argc, char** argv) {
     realpath(".", path_global);
-
+    
     if(argc == 1) {
         printf("\
 no arguments passed, exiting\n\
@@ -355,9 +365,9 @@ do not rename the daemon's home directory\n");
         return 0;
     }
 
-    int log = open(FIFO_LOG, O_RDONLY | O_NONBLOCK);
     mknod(FIFO_LOG, S_IFIFO | 0644, 0);
     mknod(FIFO_CMD, S_IFIFO | 0644, 0); //initialize fifos
+    int log = open(FIFO_LOG, O_RDONLY | O_NONBLOCK);
 
     if(!strcmp(argv[1], "restore")) { //if the arg is restore, kill the daemon, use args to customize restoration and invoke the script
         send_command('k'); //kill the daemon
