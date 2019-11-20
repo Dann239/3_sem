@@ -21,6 +21,7 @@ void term_handler(int i) // функция-обработчик сигнала
 
 int main(int argc, char ** argv) 
 {
+    printf("My pid is %d\n", getpid());
     struct sigaction sa; /* спец. структура используемая в качестве параметра системного вызова sigaction() */
     sigset_t newset; // набор сигналов
     sigemptyset(&newset); // инициализирует набор сигналов, указанный в newset, и "очищает" его от всех сигналов
@@ -37,6 +38,9 @@ int main(int argc, char ** argv)
      
     while(1) 
       sleep(1);
-     
+      //experiments:
+     //1)add sigdelset <signal> there to del signal entry
+     //2)sigprocmask(SIG_BLOCK/SIG_DFL...) on some <signal>
+  
     return EXIT_FAILURE;
 }
