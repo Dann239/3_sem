@@ -21,12 +21,13 @@ struct sockaddr_in getaddr(in_addr_t saddr, int port) {
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = saddr;
     servaddr.sin_port = htons(port);
+    memset(servaddr.sin_zero, 0, sizeof(servaddr.sin_zero));
     return servaddr;
 }
 
-int establish_socket(int type, in_addr_t saddr, int port, int flags) {
+int binded_socket(int type, in_addr_t saddr, int port) {
     struct sockaddr_in addr = getaddr(saddr, port);
-    int sockfd = socket(AF_INET | flags, type, 0);
+    int sockfd = socket(AF_INET, type, 0);
     int bind_err = bind(sockfd, &addr, sizeof(addr));
     if(bind_err < 0) crash("bind");
     return sockfd;
@@ -40,9 +41,9 @@ int accept_tcp(int sockfd) {
     return res;
 }
 
-int connect_tcp(in_addr_t saddr, int port, int flags) {
-    struct sockaddr_in addr = getaddr(saddr, port);
-    int sockfd = socket(AF_INET | flags, SOCK_STREAM, 0);
+int connect_tcp(in_addr_t saddr) {
+    struct sockaddr_in addr = getaddr(saddr, tcpport);
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     int conn = connect(sockfd, &addr, sizeof(addr));
     if(conn != 0) crash("connect");
     return sockfd;
@@ -55,12 +56,23 @@ char* recieve_udp(int sockfd, in_addr_t* addr, int* len) {
     int msglen = recvfrom(sockfd, message, 4096, MSG_WAITALL, &cliaddr, &addrlen);
     if(len) *len = msglen;
     if(addr) *addr = cliaddr.sin_addr.s_addr;
-    printf("addr: %#x message: %s\n", cliaddr.sin_addr.s_addr, message);
     return message;
 }
 
+void broadcast(in_addr_t saddr, char* message, int len) {
+    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if(sockfd == -1) crash("socket");
+    int flag = 1;
+    int err = setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &flag, sizeof(flag));
+    if(err == -1) crash("setsockopt");
+    struct sockaddr_in addr = getaddr(saddr, udpport);
+    int nsend = sendto(sockfd, message, len, MSG_CONFIRM, &addr, sizeof(addr));
+    if(nsend != len) crash("sendto");
+    close(sockfd);
+}
+
 void server() {
-    int socktcp = establish_socket(SOCK_STREAM, INADDR_ANY, tcpport, 0);
+    /*int socktcp = binded_socket(SOCK_STREAM, INADDR_ANY, tcpport);
     listen(socktcp, 4);
     while(1) {
         int fd = accept_tcp(socktcp);
@@ -70,12 +82,17 @@ void server() {
         int len = read(fd, buff, 1024);
         write(STDOUT_FILENO, buff, len);
         close(fd);
+    }*/
+    int sockudp = binded_socket(SOCK_DGRAM, INADDR_ANY, udpport);
+    while(1) {
+        int addr;
+        char* buff = recieve_udp(sockudp, &addr, NULL);
+        printf("incoming udp msg from %#x %s\n", addr, buff);
     }
 }
 
 void client() {
-    int socktcp = connect_tcp(inet_addr("127.0.0.1"), tcpport, 0);
-    dprintf(socktcp, "yay tcp 4 lyfe boyessssss\n\n");
+    broadcast(inet_addr("192.168.43.255"), "broadcast broadly casted", 25);
 }
 
 int main(int argc, char** argv) {
